@@ -76,10 +76,14 @@ Dats.prototype.metadata = function (archive, cb) {
     dat.entries = entries
     archive.get('dat.json', function (err, entry) {
       if (err) return cb(null, dat)
-      self.fileContents(archive.key, 'dat.json', function (err, metadata) {
-        if (err) return cb(null, dat)
-        dat.metadata = metadata ? JSON.parse(metadata.toString()) : undefined
-        return cb(null, dat)
+      self.file(archive.key, 'dat.json', function (err) {
+        console.log('got file', err)
+        self.fileContents(archive.key, 'dat.json', function (err, metadata) {
+          if (err) return cb(null, dat)
+          console.log('file contents')
+          dat.metadata = metadata ? JSON.parse(metadata.toString()) : undefined
+          return cb(null, dat)
+        })
       })
     })
   })
