@@ -5,6 +5,8 @@ const hyperdrive = require('hyperdrive')
 const Swarm = require('discovery-swarm')
 const swarmDefaults = require('datland-swarm-defaults')
 const hyperhttp = require('hyperdrive-http')
+const collect = require('collect-stream')
+const entryStream = require('./entryStream')
 
 module.exports = Dats
 
@@ -44,6 +46,53 @@ Dats.prototype.file = function (key, filename, cb) {
     archive.get(filename, function (err, entry) {
       if (err) return cb(err)
       archive.download(entry, true, cb) // second arg = force download
+    })
+  })
+}
+
+function getPeers (peers) {
+  var ar = {}
+  for (var i = 0; i < peers.length; i++) {
+    var peer = peers[i]
+    if (!peer.stream || !peer.stream.remoteId) continue
+    ar[peer.stream.remoteId.toString('hex')] = 1
+  }
+  var count = Object.keys(ar).length
+  return count
+}
+
+Dats.prototype.metadata = function (archive, cb) {
+  var self = this
+  var dat
+  if (!archive.content) dat = {}
+  else {
+    dat = {
+      peers: getPeers(archive.content.peers),
+      size: archive.content.bytes
+    }
+  }
+  entryStream(archive, function (err, entries) {
+    if (err) return cb(err)
+    dat.entries = entries
+    archive.get('dat.json', function (err, entry) {
+      if (err) return cb(null, dat)
+      self.fileContents(archive.key, 'dat.json', function (err, metadata) {
+        if (err) return cb(null, dat)
+        dat.metadata = metadata ? JSON.parse(metadata.toString()) : undefined
+        return cb(null, dat)
+      })
+    })
+  })
+}
+
+Dats.prototype.fileContents = function (key, filename, cb) {
+  var self = this
+  self.get(key, function (err, archive) {
+    if (err) return cb(err)
+    self.file(key, filename, function (err) {
+      if (err) return cb(err)
+      var readStream = archive.createFileReadStream(filename)
+      collect(readStream, cb)
     })
   })
 }
